@@ -1,0 +1,8 @@
+{
+	"databaseController" : "Xiphe\\ResponsiveImages\\controller\\DBControllerJson",
+	"cacheLivetime" : 2592000,
+	"nojsCookieDuration" : 604800,
+	"prefix" : "xri_",
+	"hookIntoWordpress" : true,
+	"cacheDir" : "cache"
+}

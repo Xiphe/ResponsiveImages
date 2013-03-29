@@ -1,0 +1,20 @@
+{
+	"name": "xiphe/responsive-images",
+    "require": {
+        "xiphe/html": "~2.0",
+        "xiphe/thetools": "~1.0",
+        "xiphe/thedebug": "~4.0",
+        "ext-gd": "*",
+        "php": ">=5.3",
+        "firephp/firephp-core": "dev-master",
+        "phpspec/php-diff": "dev-master",
+        "ikimea/browser": "dev-master",
+        "duvanmonsa/php-query": "dev-master"
+    },
+    "require-dev": {
+    	"phpunit/phpunit": "3.7.*"	
+    },
+    "autoload": {
+        "psr-0": { "Xiphe\\ResponsiveImages": "src/" }
+    }
+}
