@@ -1,113 +1,99 @@
 <?php
-require_once 'PHPUnit/Framework/TestCase.php';
-require_once '../vendor/autoload.php';
+
+namespace Xiphe\ResponsiveImages\tests;
 
 use Xiphe as X;
 use Xiphe\ResponsiveImages\controllers\Main;
 use Xiphe\ResponsiveImages\models\Image;
+use Xiphe\ResponsiveImages\models\ResponsiveImage;
 
-class ModelsImage extends PHPUnit_Framework_TestCase {
+require_once '../vendor/autoload.php';
+require_once 'Fixture.php';	
 
-	/* Helpers */
+class ModelsImage extends \PHPUnit_Framework_TestCase {
 
-	public function validImageData($args)
+	public function setUp()
 	{
-		return array_merge(
-			array(
-				'src' => dirname(__FILE__).Main::DS.'sunset.jpg'
-			),
-			$args
-		);
+		Fixture::ensureCacheFolder();
 	}
 
-	public function validMaster($args = array())
+	public function tearDown()
 	{
-		return Main::i(array(
-			'mediaUrl' => 'http://example.org'
-		));
+		Fixture::cleanCacheFolder();
+	}
+	
+	public function testBreakpointCreation()
+	{
+		$fixture = Fixture::validImage(array('breakPoints', array(
+			0 => 50,
+			300 => 100,
+			600 => 200,
+			2000 => 500
+		)));
+
+		$this->assertEquals(50, $fixture->getBreakpoint(1));
+		$this->assertEquals(50, $fixture->getBreakpoint(40));
+		$this->assertEquals(100, $fixture->getBreakpoint(70));
+		$this->assertEquals(200, $fixture->getBreakpoint(199));
+		$this->assertEquals(300, $fixture->getBreakpoint(299));
+		$this->assertEquals(400, $fixture->getBreakpoint(301));
+		$this->assertEquals(800, $fixture->getBreakpoint(601));
+		$this->assertEquals(2000, $fixture->getBreakpoint(1850));
+		$this->assertEquals(2500, $fixture->getBreakpoint(2200));
+		$this->assertEquals(3000, $fixture->getBreakpoint(2501));
 	}
 
-	public function validImage($args = array())
+	public function testWidthIsSetOnSubImage()
 	{
-		return $this->validMaster()->getImage($this->validImageData($args));
+		$this->assertEquals(200, Fixture::validImage(200)->get('width'));
 	}
 
-	/* Tests */
-
-	public function testModelExists()
+	public function testHeightIsSetOnSubImage()
 	{
-		$this->assertEquals('Xiphe\ResponsiveImages\models\Image', get_class($this->validImage()));
+		$this->assertEquals(335, Fixture::validImage(500)->get('height'));
 	}
 
-	public function testToString()
+	public function testWidthIsMaxedToSourcesWidth()
 	{
-		ob_start();
-		echo $this->validImage();
-		$result = ob_get_clean();
-		$this->assertRegExp('/<img src="/', $result);
+		$this->assertEquals(3318, Fixture::validImage(5000)->get('width'));
 	}
 
-	public function testHasMastersConfigByDefault()
+	public function testDoesNotSetQualityForPng()
 	{
-		$this->assertEquals('http://example.org', $this->validImage()->getConfig('mediaUrl'));
+		$this->assertEquals(null, Fixture::validImage(1, array('src' => 'data/waterfall.png'))->get('quality'));
 	}
 
-	public function testCanOverwriteMastersConfig()
+	public function testHasQualityForJpg()
 	{
-		$fixture = $this->validImage(array(
-			'mediaUrl' => 'http://example.org/foo/'
-		));
-
-		$this->assertEquals('http://example.org/foo/', $fixture->getConfig('mediaUrl'));
-		$this->assertEquals('http://example.org', $this->validMaster()->getConfig('mediaUrl'));
+		$this->assertEquals(75, Fixture::validImage()->get('quality'));
 	}
 
-	public function testStringIsSetAsSrcOnImageCreation()
+	public function testSetQualityForJpg()
 	{
-		$this->assertEquals('testImage.jpg', $this->validMaster()->getImage('testImage.jpg')->getConfig('src'));
+		$this->assertEquals(50, Fixture::validImage(1, array('quality' => 50))->get('quality'));
 	}
 
-	public function testIntIsSetAsSrcOnImageCreation()
+	public function testUseDefaultIfQualityIsNotAvailable()
 	{
-		$this->assertEquals(3, $this->validMaster()->getImage(3)->getConfig('src'));
+		$this->assertEquals(75, Fixture::validImage(1, array('quality' => 44))->get('quality'));
 	}
 
-	public function testThrowsExceptionIfInitiatedWithoutSrcValue()
+	public function testImageNameGenerationForJpg()
 	{
-		try {
-			$this->validMaster()->getImage();
-		} catch(\Xiphe\ResponsiveImages\models\Exception $e) {
-			return;
-		}
-
-		$this->fail('No Exception thrown when image initiated without src value');
+		$this->assertEquals('sunset-50x33q75.jpg', Fixture::validImage()->get('name'));
 	}
 
-	public function testExecutesFileFinderHelperOnMaster()
+	public function testImageNameGenerationForPng()
 	{
-		$master = $this->validMaster();
-
-		$observer = $this->getMock('Observer', array('callback'));
-		$observer->expects($this->once())
-                 ->method('callback')
-                 ->with($this->equalTo('anImageFile'));
-		$master->addCallback('fileFinder', array($observer, 'callback'));
-
-		$master->getImage('anImageFile');
+		$this->assertEquals('waterfall-50x54.png', Fixture::validImage(1, array('src' => 'data/waterfall.png'))->get('name'));
 	}
 
-	public function testSrcValueCanBeModifyedByFileFinder()
+	public function testImageCreationForJpg()
 	{
-		$master = $this->validMaster();
+		$fixture = Fixture::validImage();
 
-		$stub = $this->getMock('ASDF', array('callback'));
-		$stub->expects($this->any())
-             ->method('callback')
-             ->will($this->returnValue('foo.png'));
+		$fixture->ensureExistence();
 
-        $master->addCallback('fileFinder', array($stub, 'callback'));
-
-        $this->assertEquals('foo.png', $master->getImage(5)->getConfig('src'));
+		$this->assertFileExists($fixture->get('cacheFolder').$fixture->get('name'));
 	}
-
 }

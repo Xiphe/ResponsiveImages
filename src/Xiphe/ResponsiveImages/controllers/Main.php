@@ -4,6 +4,7 @@ namespace Xiphe\ResponsiveImages\controllers;
 
 use Xiphe as X;
 use Xiphe\ResponsiveImages\models\Image;
+use Xiphe\ResponsiveImages\models\ResponsiveImage;
 
 
 /**
@@ -28,19 +29,33 @@ class Main extends X\Base {
 		'prefix' => 'xri_',
 		'hookIntoWordpress' => true,
 		'cacheDir' => 'cache',
-		'initWidth' => 50,
+		'baseDir' => '/',
+		'salt' => false,
+		'cacheHacheStartLength' => 5,
+		'cacheDirPermissions' => 0755,
+		'sharpen' => true,
 		'breakPoints' => array(
 		 /* start-point => step-size */
 			0 => 50,
 			200 => 100,
 			600 => 200,
-			2000 => 400
-		)
+			2000 => 500
+		),
+		'qualities' => array(
+			25,
+			50,
+			75
+		),
+		'defaultQuality' => 75
 	);
 
 	public function init()
 	{
+		$this->_defaultConfiguration['baseDir'] = realpath(dirname(__FILE__).'/../../../../').self::DS;
+		$this->_defaultConfiguration['salt'] = md5(__FILE__);
+
 		$this->addCallback('configurationInitiated', array($this, 'validateConfig'));
+
 		parent::init();
 	}
 
@@ -56,8 +71,12 @@ class Main extends X\Base {
 		if (is_string($args) || is_int($args)) {
 			$args = array('src' => $args);
 		}
-		return new Image(array_merge(array('master' => $this), $args));
+		return new ResponsiveImage(array_merge(array('master' => $this), $args));
 	}
 
+	public function get($key)
+	{
+		return $this->getConfig($key);
+	}
 }
 ?>
