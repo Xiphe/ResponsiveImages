@@ -13,4 +13,15 @@ namespace Xiphe\ResponsiveImages\interfaces;
  */
 interface DatabaseInterface {
 	
+	public function getConfigHash($config);
+
+	public function getCacheHash($folder);
+
+	public function validateHash($hash, $data);
+
+	public function add($hash, $data);
+
+	public function save();
+
+	// public function updateResponsiveImage();
 }

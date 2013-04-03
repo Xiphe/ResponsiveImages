@@ -1,4 +1,4 @@
 {
-	"nojsCookieDuration": 50,
-	"mediaUrl": "http://example.org"
+	"_nojsCookieDuration": 50,
+	"_mediaUrl": "http://example.org"
 }

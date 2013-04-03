@@ -5,31 +5,48 @@ include 'vendor/autoload.php';
 use Xiphe\ResponsiveImages\controllers\Main;
 use Xiphe as X;
 
-$dir = 'foo/bar/test/somewhere/else/';
-$dirTmpl = 'another/colliding/folder/uMeaj/else/';
 
-var_dump(substr(md5(dirname($dir)), 0, 1));
-var_dump(substr(md5(dirname($dirTmpl)), 0, 1));
-die();
+// $dir = '/a/test/folder/somewhere/';
+// $dirTmpl = '/another/::/colliding/folder/';
 
-$dir2 = str_replace('::', 'a', $dirTmpl);
-$i = 0;
-while($i < 100 && substr(md5(dirname($dir2)), 0, 1) != 3) {
-	$str = X\THETOOLS::get_randomString(5, 'aAn');
-	$dir2 = str_replace('::', $str, $dirTmpl);
-	$i++;
-}
+// // var_dump(substr(md5($dir), 0, 5));
+// // var_dump(substr(md5($dirTmpl), 0, 5));
+// // die();
 
-die($str);
+// function randomDir()
+// {
+// 	$dirTmpl = '/another/::/colliding/folder/';
+// 	$dir = trim(X\THETOOLS::get_randomString(5, 'an', '///abcdef//////ghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz'), '/');
+// 	$dir = preg_replace('/[\/]+/', '/', $dir);
+
+// 	return str_replace('::', $dir, $dirTmpl);
+// }
+
+// $dir2 = randomDir();
+// $searchsurce = md5(json_encode($dir));
+// $length = 3;
+
+// $search = substr($searchsurce, 0, $length);
+// $i = 0;
+// while(substr(md5(json_encode($dir2)), 0, $length) != $search) {
+// 	$dir2 = randomDir();
+// 	if ($i > 1000000) {
+// 		die('nothing Found');
+// 	}
+// 	$i++;
+// }
+
+// var_dump(substr(md5($dir2), 0, $length));
+// die($dir2);
 
 $RI = Main::i(array(
-	'mediaUrl' => 'http://localhost/ResponsiveImages/'
+	'_mediaUrl' => 'http://localhost/ResponsiveImages/'
 ));
 
 $Image = $RI->getImage(array(
 	'src' => 'tests/data/sunset.jpg'
 ));
-var_dump($Image->getConfig('ratio'));
+var_dump($RI->getDB()->getCacheHash('/foo/bar'));
 
 // include 'vendor/xiphe/thedebug/globaldebug.php';
 

@@ -5,6 +5,7 @@ namespace Xiphe\ResponsiveImages\tests;
 use Xiphe as X;
 use Xiphe\ResponsiveImages\controllers\Main;
 use Xiphe\ResponsiveImages\models\ResponsiveImage;
+use Xiphe\ResponsiveImages\controllers\DatabaseJson;
 
 require_once '../vendor/autoload.php';
 require_once 'Fixture.php';	
@@ -21,6 +22,13 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 		Fixture::cleanCacheFolder();
 	}
 
+	public function stubbedImage()
+	{
+		return Fixture::validResponsiveImage(array(
+			'creator' => array($this->getMock('Stub', array('callback')), 'callback')
+		));
+	}
+
 	/* Tests */
 
 	public function testModelExists()
@@ -33,31 +41,47 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 
 	public function testToString()
 	{
+		$fixture = $this->stubbedImage();
+
 		ob_start();
-		echo Fixture::validResponsiveImage();
+		echo $fixture;
 		$result = ob_get_clean();
-		$this->assertRegExp('/<img src="/', $result);
+		$this->assertTag(array('tag' => 'img'), $result);
 	}
 
 	public function testHasMastersConfigByDefault()
 	{
-		$this->assertEquals('http://example.org', Fixture::validResponsiveImage()->get('mediaUrl'));
+		$this->assertEquals('http://example.org', Fixture::validResponsiveImage()->get('_mediaUrl'));
+	}
+
+	public function testCanNotOverwriteProtectedMastersConfig()
+	{
+		try {
+			 Fixture::validResponsiveImage(array(
+				'_mediaUrl' => 'http://example.org/foo/'
+			));
+		} catch(\Xiphe\ResponsiveImages\models\Exception $e) {
+			return;
+		}
+
+		$this->fail('Protected configuration keys not protected properly.');
+
 	}
 
 	public function testCanOverwriteMastersConfig()
 	{
 		$fixture = Fixture::validResponsiveImage(array(
-			'mediaUrl' => 'http://example.org/foo/'
+			'classPrefix' => 'foo_'
 		));
 
-		$this->assertEquals('http://example.org/foo/', $fixture->get('mediaUrl'));
-		$this->assertEquals('http://example.org', Fixture::validMaster()->get('mediaUrl'));
+		$this->assertEquals('foo_', $fixture->get('classPrefix'));
+		$this->assertEquals('xri_', Fixture::validMaster()->get('classPrefix'));
 	}
 
 	public function testStringIsSetAsSrcOnImageCreation()
 	{
 		$this->assertRegExp(
-			'/data\/forest\.jpg/',
+			sprintf('/data%sforest\.jpg/', preg_quote(DIRECTORY_SEPARATOR)),
 			Fixture::validMaster()->getImage('data/forest.jpg')->get('src')
 		);
 	}
@@ -109,7 +133,10 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 
         $master->addCallback('fileFinder', array($stub, 'callback'));
 
-        $this->assertRegExp('/data\/forest\.jpg/', $master->getImage(5)->get('src'));
+        $this->assertRegExp(
+        	sprintf('/data%sforest\.jpg/', preg_quote(DIRECTORY_SEPARATOR)),
+        	$master->getImage(5)->get('src')
+        );
 	}
 
 	public function testClassesCanBeAppended()
@@ -124,12 +151,12 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 
 	public function testWidthIsFetchedFromImage()
 	{
-		$this->assertEquals(3318, Fixture::validResponsiveImage()->get('sourceWidth'));
+		$this->assertEquals(3318, Fixture::validResponsiveImage()->get('maxWidth'));
 	}
 
 	public function testHeightIsFetchedFromImage()
 	{
-		$this->assertEquals(2221, Fixture::validResponsiveImage()->get('sourceHeight'));
+		$this->assertEquals(2221, Fixture::validResponsiveImage()->get('maxHeight'));
 	}
 
 	public function testFetchAbolutePathOfSourceImage()
@@ -160,34 +187,35 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 
 	public function testCacheFolderIsMd5ValueOfSrc()
 	{
-		$fakeFolder = '/foo/bar/test/somewhere/else/';
 
-		$fixture = Fixture::validResponsiveImage(array(
-			'cacheHacheStartLength' => 10
-		));
-		$fixture->setCacheFolder($fakeFolder);
-		
 		$DS = DIRECTORY_SEPARATOR;
-		$assertion = substr(md5(dirname($fakeFolder)), 0, 10);
+		$fakeFolder = str_replace('/', $DS, '/foo/bar/test/somewhere/else/');
+
+		$master = Fixture::validMaster(array(
+			'_hashesStartLength' => 32,
+		));
+		$master->initGlobalSettings(true);
+
+		$fixture = $master->getImage(Fixture::validImageData());
+		$fixture->setCacheFolderTo($fakeFolder);
+
+		$assertion = md5(json_encode(dirname($fakeFolder).$DS));
 		$assertion .= $DS.'else'.$DS;
 
 		$this->assertEquals(Fixture::cache($assertion), $fixture->get('cacheFolder'));
-	}
-
-	public function testCacheBindingFileExists()
-	{
-		$fixture = Fixture::validResponsiveImage();
-
-		$this->assertFileExists(dirname($fixture->get('cacheFolder')).'/.xri_binding');
 	}
 
 	public function testCacheFolderIsBoundToSource()
 	{
 		$fixture = Fixture::validResponsiveImage();
 
+		$cacheDir = $fixture->get('cacheFolderName');
+
+		$folder = $fixture->get('master')->getDB()->getCacheFolderByHash(dirname($cacheDir));
+
 		$this->assertEquals(
 			Fixture::data(),
-			file_get_contents(dirname($fixture->get('cacheFolder')).'/.xri_binding')
+			$folder.basename($cacheDir).DIRECTORY_SEPARATOR
 		);
 	}
 
@@ -204,34 +232,37 @@ class ModelsResponsiveImage extends \PHPUnit_Framework_TestCase {
 		);
 	}
 
-	public function testExtendsHashIfTwoCollide()
-	{
-		$dir = 'foo/bar/test/somewhere/else/';
-		$collidingDir = 'another/colliding/folder/uMeaj/else/';
+	// public function testToStringHasClass()
+	// {
+	// 	ob_start();
+	// 	echo Fixture::stubbedResponsiveImage();
+	// 	$result = ob_get_clean();
 
-		$fixture = Fixture::validResponsiveImage(array(
-			'cacheHacheStartLength' => 1
-		));
+	// 	$matcher = array(
+	// 	  'attributes' => array('class' => 'xri_image')
+	// 	);
+	// 	$this->assertTag($matcher, $result, 'xri_image class not set on responsive image');
+	// }
 
-		$fixture->setCacheFolder($dir);
-		$folder1 = $fixture->get('cacheFolder');
+	// public function testToStringHasMaxwidthAttr()
+	// {
+	// 	$fixture = Fixture::stubbedResponsiveImage();
 
-		$fixture->setCacheFolder($collidingDir);
-		$folder2 = $fixture->get('cacheFolder');
-		
-		$this->assertNotEquals($folder1, $folder2);
-	}
+	// 	$matcher = array(
+	// 	  'attributes' => array('data-maxwidth' => $fixture->get('sourceWidth'))
+	// 	);
 
-	public function xtestSmallImageIsBeingGeneratedForNewImageInstance()
-	{
-		$master = Fixture::validMaster(array('breakPoints', array(0 => 50)));
+	// 	$this->assertTag($matcher, $fixture->__toString(), 'data-maxwidth not set on responsive image');
+	// }
 
-		$master->getImage(Fixture::validImageData());
+	// public function xtestToStringHasBreakpointsAttr()
+	// {
+	// 	$fixture = Fixture::stubbedResponsiveImage();
 
-		$this->assertFileExists(Fixture::cache('ResponsiveImages/data/sunset-50x33q75.jpg'));
-	}
-
-
-
-
+	// 	$matcher = array(
+	// 	  'attributes' => array('data-breakpoints' => json_encode($fixture->get('breakPoints')))
+	// 	);
+	// 	// var_dump($fixture->__toString());
+	// 	$this->assertTag($matcher, $fixture->__toString(), 'data-breakpoints not set on responsive image');
+	// }
 }

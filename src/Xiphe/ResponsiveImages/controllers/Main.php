@@ -21,18 +21,23 @@ use Xiphe\ResponsiveImages\models\ResponsiveImage;
  * @package   ResponsiveImages
  */
 class Main extends X\Base {
-	protected $_defaultConfiguration = array(
-		'databaseController' => 'Xiphe\\ResponsiveImages\\controller\\DBControllerJson',
-		'mediaUrl' => false,
+
+	private static $_settings = array(
+		'databaseController' => 'Xiphe\\ResponsiveImages\\controllers\\DatabaseJson',
 		'cacheLivetime' => 2592000,
 		'nojsCookieDuration' => 604800,
-		'prefix' => 'xri_',
-		'hookIntoWordpress' => true,
-		'cacheDir' => 'cache',
-		'baseDir' => '/',
-		'salt' => false,
-		'cacheHacheStartLength' => 5,
-		'cacheDirPermissions' => 0755,
+	);
+
+	private static $_DB;
+
+	protected $_defaultConfiguration = array(
+		'_databaseConfig' => null,
+		'_mediaUrl' => false,
+		'_cacheDir' => 'cache',
+		'_baseDir' => '/',
+		'_hashesStartLength' => 5,
+		'_cacheDirPermissions' => 0755,
+		'classPrefix' => 'xri_',
 		'sharpen' => true,
 		'breakPoints' => array(
 		 /* start-point => step-size */
@@ -51,18 +56,59 @@ class Main extends X\Base {
 
 	public function init()
 	{
-		$this->_defaultConfiguration['baseDir'] = realpath(dirname(__FILE__).'/../../../../').self::DS;
-		$this->_defaultConfiguration['salt'] = md5(__FILE__);
-
+		$this->_defaultConfiguration['_baseDir'] = realpath(dirname(__FILE__).'/../../../../').self::DS;
 		$this->addCallback('configurationInitiated', array($this, 'validateConfig'));
 
 		parent::init();
+
+		$this->initGlobalSettings();
+	}
+
+	public function initGlobalSettings($force = false)
+	{
+		if (null === self::$_DB || $force) {
+			foreach ($this->getGlobalSettings() as $key => $v) {
+				$constName = 'XIPHE_RESPONSIVEIMAGES_'.strtoupper($key);
+				if (defined($constName)) {
+					self::$_settings[$key] = constant($constName);
+				}
+			}
+
+
+			$dbClass = $this->getGlobalSettings('databaseController');
+			self::$_DB = $dbClass::i($this->get('_database'));
+		}
+	}
+
+	public function getDB()
+	{
+		return self::$_DB;
+	}
+
+	public function getGlobalSettings($key = null)
+	{
+		if (null === $key) {
+			return self::$_settings;
+		} elseif (isset(self::$_settings[$key])) {
+			return self::$_settings[$key];
+		}
+
+	}
+
+	public function getFullConfiguration()
+	{
+		return $this->_configuration;
+	}
+
+	public function get($key)
+	{
+		return $this->getConfig($key);
 	}
 
 	public function validateConfig($config)
 	{
-		if ($config->mediaUrl === false) {
-			throw new Exception('Missing mediaUrl setting in configuration.', 1);
+		if ($config->_mediaUrl === false) {
+			throw new Exception('Missing _mediaUrl setting in configuration.', 1);
 		}
 	}
 
@@ -74,9 +120,5 @@ class Main extends X\Base {
 		return new ResponsiveImage(array_merge(array('master' => $this), $args));
 	}
 
-	public function get($key)
-	{
-		return $this->getConfig($key);
-	}
 }
 ?>

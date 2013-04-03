@@ -14,20 +14,38 @@ use Xiphe as X;
  * @package   ResponsiveImages
  */
 class Image extends X\Base {
-
     public function init()
     {
         $this->addCallback('configurationInitiated', array($this, 'validateConfig'));
         parent::init();
 
+        $this->setCreator();
         $this->setDimensions();
         $this->setQuality();
         $this->setName();
+        $this->setUrl();
     }
 
     public function get($key)
     {
         return $this->getConfig($key);
+    }
+
+    public function setCreator()
+    {   
+        $creator = $this->get('creator');
+
+        if (null === $creator || !is_callable($creator)) {
+            $this->setConfig('creator', array($this, 'create'));
+        }
+    }
+
+    public function setConfig($key, $value)
+    {
+        if (substr($key, 0, 1) === '_') {
+            throw new Exception('forbidden: one does not simply set protected settings.', 1);
+        }
+        parent::setConfig($key, $value);
     }
 
     public function getConfig($key)
@@ -99,14 +117,19 @@ class Image extends X\Base {
         $this->setConfig('name', $name);
     }
 
+    public function setUrl()
+    {
+        $this->setConfig('url', $this->get('url').$this->get('name'));
+    }
+
     public function ensureExistence()
     {
         $file = $this->get('cacheFolder').$this->get('name');
-        if (file_exists($file)) {
-            return $file;
-        } else {
-            $this->create();
+        if (!file_exists($file)) {
+            call_user_func($this->get('creator'), $this);
         }
+
+        return $file;
     }
 
     public function create()
@@ -163,7 +186,7 @@ class Image extends X\Base {
         );
 
         if (!is_dir(dirname($target))) {
-            mkdir(dirname($target), $this->get('cacheDirPermissions'), true);
+            mkdir(dirname($target), $this->get('_cacheDirPermissions'), true);
         }
 
         switch ($extension) {
@@ -197,7 +220,7 @@ class Image extends X\Base {
         $next = 0;
         $end = false;
         $breakPoints = $this->getConfig('breakPoints');
-        $maxWidth = $this->getConfig('sourceWidth');
+        $maxWidth = $this->getConfig('maxWidth');
 
         foreach ($breakPoints as $start => $steps) {
             if (($n = next($breakPoints)) !== false) {
@@ -222,6 +245,7 @@ class Image extends X\Base {
 
     public function __toString()
     {
-
+        $this->ensureExistence();
+        return $this->get('url');
     }
 }

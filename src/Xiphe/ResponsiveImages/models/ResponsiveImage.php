@@ -19,10 +19,34 @@ class ResponsiveImage extends Base {
 	protected $_defaultConfiguration = array(
 		'defaultWidth' => 'auto',
 		'id' => '',
-		'classes' => array('xri_iamge', 'xri_loading'),
+		'classes' => array('image', 'loading'),
 		'src' => false,
 		'alt' => null,
-		'title' => ''
+		'title' => '',
+		'maxWidth' => 1,
+		'maxHeight' => 1,
+		'sourceSize' => false
+	);
+
+	private static $_configKeysToSave = array(
+		'classPrefix',
+		'defaultQuality',
+		'qualities',
+		'_mediaUrl',
+		'sharpen',
+		'breakPoints',
+		'sourceSize',
+		'ratio',
+		'maxWidth',
+		'maxHeight'
+	);
+
+	private static $_ajaxConfigKeys = array(
+		'qualities',
+		'breakPoints',
+		'ratio',
+		'maxWidth',
+		'maxHeight',
 	);
 
 	private $_bindings = array();
@@ -38,7 +62,8 @@ class ResponsiveImage extends Base {
 		$this->ensureSourceImageExists();
 
 		/* Gather Basic Data */
-		$this->setCacheFolder();
+		$this->setCacheFolderTo(dirname($this->get('src')));
+		$this->setUrl();
 		$this->fetchDimensions();
 		$this->setExtension();
 
@@ -49,6 +74,17 @@ class ResponsiveImage extends Base {
 	public function __toString()
 	{
 		return '<img src="';
+	}
+
+	public function getFullConfig()
+	{
+		$ownConfig = (array) $this->_configuration;
+		unset($ownConfig['master']);
+
+		$masterConfig = (array) $this->get('master')->getFullConfiguration();
+		unset($masterConfig['_db']);
+
+		return (object) array_merge($masterConfig, $ownConfig);
 	}
 
 	public function getSubImageForSize($size)
@@ -83,6 +119,14 @@ class ResponsiveImage extends Base {
 		return $result;
 	}
 
+	public function setConfig($key, $value)
+    {
+        if (substr($key, 0, 1) === '_') {
+            throw new Exception('forbidden: one does not simply set protected settings.', 1);
+        }
+        parent::setConfig($key, $value);
+    }
+
 	public function validateConfig($config)
 	{
 		if (!is_object($config->master)) {
@@ -93,12 +137,9 @@ class ResponsiveImage extends Base {
 			throw new Exception('Missing src setting in configuration.', 1);
 		}
 
-		if (null !== $config->class) {
-			$this->_configuration->classes = array_merge(
-				$this->_configuration->classes,
-				explode(' ', $config->class)
-			);
-		}
+		$this->prefixClasses();
+
+		$this->mergeClasses();
 
 		$this->setConfig(
 			'src',
@@ -110,6 +151,27 @@ class ResponsiveImage extends Base {
 				true
 			)
 		);
+	}
+
+	public function prefixClasses()
+	{
+		$classes = $this->get('classes');
+		array_walk($classes, function (&$item, $key, $prefix) {
+			$item = $prefix.$item;
+		}, $this->get('prefix'));
+
+		$this->setConfig('classes', $classes);
+	}
+
+	public function mergeClasses()
+	{
+		$class = $this->get('class');
+		if (null !== $class) {
+			$this->setConfig('classes', array_merge(
+				$this->get('classes'),
+				explode(' ', $class)
+			));
+		}
 	}
 
 	public function ensureSourceImageExists()
@@ -129,75 +191,29 @@ class ResponsiveImage extends Base {
 		$this->setConfig('src', $source);
 	}
 
-	public function setCacheFolder($sourceFolder = null)
+	public function setUrl()
 	{
-		if (null === $sourceFolder) {
-			$sourceFolder = dirname($this->get('src'));
-		}
+		$this->setConfig(
+			'url',
+			THETOOLS::slash($this->get('_mediaUrl')).THETOOLS::slash($this->get('cacheFolderName'), true)
+		);
+	}
 
+	public function setCacheFolderTo($sourceFolder)
+	{
 		$sourceFolder = THETOOLS::DS($sourceFolder, true);
-		$cacheDir = THETOOLS::DS($this->get('cacheDir'), true);
+		$cacheDir = THETOOLS::DS($this->get('_cacheDir'), true);
 		$context = basename($sourceFolder);
 
-		$hash = $this->_getCacheBindingHash($cacheDir, $sourceFolder);
+		$hash = $this->get('master')->getDB()->getCacheHash(
+			dirname($sourceFolder).DIRECTORY_SEPARATOR,
+			$this->get('_hashesStartLength')
+		);
 
-		$this->setConfig('cacheFolder', $cacheDir.THETOOLS::DS("$hash/$context", true));
-	}
+		$cacheSubDir = THETOOLS::DS("$hash/$context", true);
 
-	private function _getCacheBindingHash($cacheDir, $sourceFolder)
-	{
-		if (!isset($this->_bindings[$sourceFolder])) {
-
-			$folderHash = md5(dirname($sourceFolder));
-			$length = $this->get('cacheHacheStartLength');
-			$hash = substr($folderHash, 0, $length);
-
-			while (!$this->_validateCacheFolder($cacheDir, $hash, $sourceFolder)) {
-				$length++;
-				$hash = substr($folderHash, 0, $length);
-			}
-
-			$this->_bindings[$sourceFolder] = $hash;
-		}
-
-		return $this->_bindings[$sourceFolder];
-	}
-
-	private function _validateCacheFolder($cacheDir, $hash, $sourceFolder)
-	{
-		$fullPath = THETOOLS::DS($this->get('cacheDir'), true);
-		$fullPath .= THETOOLS::DS($hash);
-
-		if (!is_dir($fullPath)) {
-			$this->_bindCacheFolder($fullPath, $sourceFolder);
-			return true;
-		} elseif ($this->_bindingIsCorrect($fullPath, $sourceFolder)) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	private function _bindCacheFolder($cacheFolder, $sourceFolder)
-	{
-
-		$file = $cacheFolder.'.xri_binding';
-
-		if (!is_dir($cacheFolder)) {
-			mkdir($cacheFolder, $this->get('cacheDirPermissions'), true);
-		}
-
-		if (!file_exists($file)) {
-			$handle = fopen($file, 'w');
-			fclose($handle);
-		}
-
-		file_put_contents($cacheFolder.'.xri_binding', $sourceFolder);
-	}
-
-	private function _bindingIsCorrect($cacheFolder, $sourceFolder)
-	{
-		return (file_get_contents($cacheFolder.'.xri_binding') === $sourceFolder);
+		$this->setConfig('cacheFolderName', $cacheSubDir);
+		$this->setConfig('cacheFolder', $cacheDir.$cacheSubDir);
 	}
 
 	public function fetchDimensions()
@@ -214,8 +230,8 @@ class ResponsiveImage extends Base {
 
 		$ratio = round($dims[0]/$dims[1], 4);
 		$this->setConfig('ratio', $ratio);
-		$this->setConfig('sourceWidth', $dims[0]);
-		$this->setConfig('sourceHeight', $dims[1]);
+		$this->setConfig('maxWidth', $dims[0]);
+		$this->setConfig('maxHeight', $dims[1]);
 
 		return $ratio;
 	}

@@ -10,7 +10,16 @@ require_once 'Fixture.php';
 
 class ControllersMain extends \PHPUnit_Framework_TestCase {
 
+	public function setUp()
+	{
+		Fixture::ensureCacheFolder();
+	}
 
+	public function tearDown()
+	{
+		Fixture::cleanCacheFolder();
+	}
+	
 	public function testControllerExists()
 	{
 		$this->assertInstanceOf('Xiphe\ResponsiveImages\controllers\Main', Fixture::validMaster());
@@ -32,6 +41,21 @@ class ControllersMain extends \PHPUnit_Framework_TestCase {
 		$this->fail('Exception not thrown');
 	}
 
+	public function testHasGlobalConfiguration()
+	{
+		$this->assertEquals(2592000, Fixture::validMaster()->getGlobalSettings('cacheLivetime'));
+	}
+
+	public function testGlobalConfigurationCanBeChangedWithConstants()
+	{
+		define('XIPHE_RESPONSIVEIMAGES_CACHELIVETIME', 3600);
+
+		$fixture = Fixture::validMaster();
+		$fixture->initGlobalSettings(true);
+		
+		$this->assertEquals(3600, $fixture->getGlobalSettings('cacheLivetime'));
+	}
+
 	public function testInitWithSettingsArray()
 	{
 		$fixture = Fixture::validMaster(array(
@@ -45,7 +69,7 @@ class ControllersMain extends \PHPUnit_Framework_TestCase {
 	{
 		$fixture = Main::i(Fixture::data('exampleConfig.json'));
 
-		$this->assertEquals(50, $fixture->get('nojsCookieDuration'));
+		$this->assertEquals(50, $fixture->get('_nojsCookieDuration'));
 	}
 
 	public function testImageMethodReturnsNewImageInstance()

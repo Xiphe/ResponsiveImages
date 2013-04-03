@@ -4,10 +4,11 @@ namespace Xiphe\ResponsiveImages\tests;
 
 use Xiphe as X;
 use Xiphe\ResponsiveImages\controllers\Main;
+use Xiphe\ResponsiveImages\controllers\DatabaseJson;
 
 require_once '../vendor/autoload.php';
 
-class Fixture {
+class Fixture extends \PHPUnit_Framework_TestCase {
 
 	public static function ensureCacheFolder()
 	{
@@ -19,6 +20,10 @@ class Fixture {
 	public static function cleanCacheFolder()
 	{
 		foreach (glob(self::cache().'*') as $folder) {
+			if (!is_dir($folder)) {
+				unlink($folder);
+				continue;
+			}
 			self::_recursiveDelete($folder);
 		}
 	}
@@ -56,8 +61,12 @@ class Fixture {
 	{
 		return Main::i(array_merge(
 			array(
-				'mediaUrl' => 'http://example.org',
-				'cacheDir' => self::cache()
+				'_mediaUrl' => 'http://example.org',
+				'_cacheDir' => self::cache(),
+				'_hashesStartLength' => 3,
+				'_database' => array(
+					'jsonFile' => self::jsonDbFile()
+				)
 			),
 			$args
 		));
@@ -71,5 +80,23 @@ class Fixture {
 	public static function validImage($size = 1, $args = array())
 	{
 		return self::validMaster()->getImage(self::validImageData($args))->getSubImageForSize($size);
+	}
+
+	public static function jsonDbFile()
+	{
+		$db = self::cache('db.json');
+		if (!is_file($db)) {
+			$h = fopen($db, 'w');
+			fclose($h);
+		}
+		return $db;
+	}
+
+
+	public static function jsonDb()
+	{
+		return DatabaseJson::i(array(
+			'jsonFile' => self::jsonDbFile(),
+		));
 	}
 }

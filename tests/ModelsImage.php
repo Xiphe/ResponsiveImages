@@ -21,7 +21,15 @@ class ModelsImage extends \PHPUnit_Framework_TestCase {
 	{
 		Fixture::cleanCacheFolder();
 	}
-	
+
+	public function stubbedImage()
+	{
+		$fixture = Fixture::validImage();
+		$fixture->setConfig('creator', array($this->getMock('Stub', array('callback')), 'callback'));
+
+		return $fixture;
+	}
+
 	public function testBreakpointCreation()
 	{
 		$fixture = Fixture::validImage(array('breakPoints', array(
@@ -95,5 +103,29 @@ class ModelsImage extends \PHPUnit_Framework_TestCase {
 		$fixture->ensureExistence();
 
 		$this->assertFileExists($fixture->get('cacheFolder').$fixture->get('name'));
+	}
+
+	public function testImageCreationIsOnlyCalledOnce()
+	{
+		$fixture = Fixture::validImage();
+
+		$fixture->ensureExistence();
+
+		$observer = $this->getMock('Observer', array('callback'));
+		$observer->expects($this->never())
+                 ->method('callback');
+
+        $fixture->creator = array($observer, 'callback');
+        
+		$fixture->ensureExistence();
+	}
+
+	public function testToString()
+	{
+		$fixture = $this->stubbedImage();
+
+		$cacheFolder = str_replace(DIRECTORY_SEPARATOR, '/', $fixture->get('cacheFolderName'));
+
+		$this->assertEquals('http://example.org/'.$cacheFolder.'sunset-50x33q75.jpg', $fixture->__toString());
 	}
 }
